@@ -1,0 +1,44 @@
+[
+  {
+    "id": "business",
+    "name": "Billionaire Empires",
+    "voice": "en-US-GuyNeural",
+    "tone": "Investigative, confident",
+    "color": "#d9ac61"
+  },
+  {
+    "id": "geography",
+    "name": "Hidden Geography",
+    "voice": "en-US-AndrewNeural",
+    "tone": "Curious, atmospheric",
+    "color": "#5ecab8"
+  },
+  {
+    "id": "science",
+    "name": "Impossible Science",
+    "voice": "en-US-BrianNeural",
+    "tone": "Wonder and suspense",
+    "color": "#8ca7ff"
+  },
+  {
+    "id": "history",
+    "name": "Forgotten History",
+    "voice": "en-GB-RyanNeural",
+    "tone": "Mysterious, cinematic",
+    "color": "#e0a07d"
+  },
+  {
+    "id": "movies",
+    "name": "Hollywood Explained",
+    "voice": "en-US-ChristopherNeural",
+    "tone": "Analytical, dramatic",
+    "color": "#caa3ef"
+  },
+  {
+    "id": "engineering",
+    "name": "Mega Machines",
+    "voice": "en-US-EricNeural",
+    "tone": "Precise, energetic",
+    "color": "#93c77a"
+  }
+]
