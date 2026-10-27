@@ -32,3 +32,21 @@ Upload only footage you have permission to use. Internet is required for Edge TT
 
 ## Quality
 Video is built from **real moving clips**, not text-only slides. It is a documentary assembly tool, not Hollywood-quality synthetic video. Test with a 30–60 second script first.
+
+## Android / Google Colab: launch the studio
+
+Open an existing Colab notebook. In a **new cell**, paste:
+
+```python
+%cd /content/faisal-auto-studio
+!git pull --ff-only
+!python COLAB_LAUNCH.py
+```
+
+The launcher installs dependencies, checks Python syntax, creates a random password and launches a **temporary Gradio share URL**. Open that URL on your Android browser; username is `studio` and the password is printed in your private Colab output. Keep the notebook running. Do not share the URL/password. For a fresh notebook, first run `!git clone https://github.com/miang20/faisal-auto-studio.git /content/faisal-auto-studio`.
+
+Colab may disconnect, Commons media may be missing, and Gradio sharing may fail or expire. This is not persistent deployment. Google Colab is not an always-on production host. **Do not enter API keys into the public repository.**
+
+## Verification status
+
+GitHub Actions performs Python syntax and unit tests on pushes. The automatic Wikimedia Commons + Edge TTS + FFmpeg render still requires an end-to-end test with a live runtime and available footage. Until then it is an experimental beta, not a verified finished generator.
