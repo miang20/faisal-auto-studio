@@ -22,7 +22,7 @@ def duration(path):
     return float(run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(path)]).strip())
 
 def scenes(script):
-    chunks = [x.strip() for x in re.split(r"(?<=[.!?])\\s+|\\n+",script) if x.strip()]
+    chunks = [x.strip() for x in re.split(r"(?<=[.!?])\s+|\n+",script) if x.strip()]
     grouped = []
     current = []
     for sentence in chunks:
@@ -82,7 +82,7 @@ async def render(script: str = Form(...), channel: str = Form("business"), clips
             segments.append(seg)
             plan.append({"scene":i+1,"text":part,"footage":src.name,"seconds":round(seconds,2)})
         listing=job/"concat.txt"
-        listing.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\\n" for p in segments))
+        listing.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\n" for p in segments))
         video=job/"final.mp4"
         run(["ffmpeg","-y","-f","concat","-safe","0","-i",str(listing),
              "-c:v","libx264","-preset","veryfast","-crf","22","-c:a","aac","-b:a","160k",
