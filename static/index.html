@@ -6,7 +6,7 @@ document.querySelector('#autoform').onsubmit=async e=>{
 e.preventDefault();const btn=document.querySelector('#autogo'),out=document.querySelector('#autostatus'),links=document.querySelector('#autolinks');
 btn.disabled=true;links.textContent='';out.textContent='Starting...';
 try{
-const r=await fetch('/api/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script:e.target.script.value,channel:document.querySelector('#autochannel').value})});
+const r=await fetch('/api/auto',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({script:e.target.elements.namedItem('script').value,channel:document.querySelector('#autochannel').value})});
 const data=await r.json();if(!r.ok)throw Error(data.detail||'Could not start job');
 let finished=false;
 while(!finished){
