@@ -106,3 +106,33 @@ def plan(job_id: str):
     p=OUT/job_id/"scene_plan.json"
     if not p.exists(): raise HTTPException(404)
     return FileResponse(p,media_type="application/json",filename="scene_plan.json")
+
+# Automated mode: licensed Wikimedia Commons footage (no API key required).
+from pydantic import BaseModel
+from auto_engine import start as start_auto, status as auto_status
+
+class AutoRequest(BaseModel):
+    script: str
+    channel: str = "business"
+
+@app.post("/api/auto")
+def auto_create(request: AutoRequest):
+    if not 80 <= len(request.script.strip()) <= 10000:
+        raise HTTPException(400,"Script length must be 80–10000 characters.")
+    profile=next((x for x in CHANNELS if x["id"]==request.channel),None)
+    if not profile:raise HTTPException(400,"Unknown channel")
+    return {"job_id":start_auto(request.script.strip(),profile)}
+
+@app.get("/api/auto/{job_id}")
+def auto_progress(job_id: str):
+    if not re.fullmatch(r"[0-9a-f]{32}",job_id):raise HTTPException(404)
+    job=auto_status(job_id)
+    if not job:raise HTTPException(404,"Job not found; runtime may have restarted.")
+    return job
+
+@app.get("/api/manifest/{job_id}")
+def auto_manifest(job_id: str):
+    if not re.fullmatch(r"[0-9a-f]{32}",job_id):raise HTTPException(404)
+    p=OUT/job_id/"manifest.json"
+    if not p.exists():raise HTTPException(404)
+    return FileResponse(p,media_type="application/json",filename="footage_credits.json")
