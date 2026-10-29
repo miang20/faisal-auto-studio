@@ -15,15 +15,16 @@ def run(cmd,timeout=600):
 def duration(p):
     return float(run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(p)]).strip())
 def scene_boundaries(src, length, threshold=0.30):
-    """Detect visual scene changes from a low-resolution analysis pass."""
-    cmd=["ffmpeg","-hide_banner","-nostats","-i",str(src),"-vf",
-         f"scale=320:-2,select='gt(scene,{threshold})',showinfo",
+    """Fast scene detection: sample one low-resolution frame every two seconds."""
+    cmd=["ffmpeg","-hide_banner","-nostats","-threads","1","-i",str(src),"-vf",
+         f"fps=1/2,scale=160:-2,select='gt(scene,{threshold})',showinfo",
          "-an","-f","null","-"]
     try:
-        p=subprocess.run(cmd,capture_output=True,text=True,timeout=240)
+        p=subprocess.run(cmd,capture_output=True,text=True,timeout=75)
+        if p.returncode: raise RuntimeError("Scene analysis unavailable")
         times=[float(x) for x in re.findall(r"pts_time:\\s*([0-9]+(?:\\.[0-9]+)?)",p.stderr)]
         return sorted(set([0.0]+[round(t,2) for t in times if 1<t<length-1]+[float(length)]))
-    except Exception:
+    except (subprocess.TimeoutExpired,RuntimeError):
         return [0.0,float(length)]
 def natural_segments(boundaries, length, target, mode):
     """Choose full visual scenes in source order, without cutting at a fixed timer."""
