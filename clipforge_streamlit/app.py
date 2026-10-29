@@ -16,9 +16,11 @@ def duration(p):
     return float(run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(p)]).strip())
 def has_audio(src):
     return bool(run(["ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=index","-of","csv=p=0",str(src)]).strip())
-def cut(src,start,length,out,portrait=False,mute=False):
+def cut(src,start,length,out,portrait=False,mute=False,punch=False):
     w,h=(540,960) if portrait else (960,540)
     vf=f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=24,format=yuv420p"
+    if punch:
+        vf=f"scale={int(w*1.07)//2*2}:{int(h*1.07)//2*2}:force_original_aspect_ratio=increase,crop={w}:{h},fps=24,format=yuv420p"
     cmd=["ffmpeg","-y","-v","error","-ss",str(start),"-i",str(src)]
     use_source_audio=has_audio(src) and not mute
     if not use_source_audio:
@@ -58,6 +60,10 @@ edit_mode=st.selectbox("Editing style",["Story-first (chronological)","Remix (sh
 audio_mode=st.selectbox("Audio treatment",["Original synchronized audio","Mute source audio"],help="Audio is cut together with each video segment. Mute mode outputs silent audio.")
 shot_length=st.slider("Average source shot length (seconds)",6,40,20,2)
 short_count=st.slider("Number of vertical Shorts",0,3,3)
+st.subheader("⚡ Engagement editor")
+pacing=st.selectbox("Pacing",["Balanced","Fast-paced","Very fast"],help="Faster pacing uses shorter clips; can cut speech mid-sentence.")
+punch_zoom=st.checkbox("Subtle punch-in on alternating shots",True,help="Adds a small static zoom to alternating clips, not AI camera motion.")
+st.caption("Fast pacing and zoom add energy, but this version does not detect punchlines, viral moments or sentence boundaries.")
 st.caption("Story-first is the safer choice for dialogue, interviews and narrative videos. Remix is intended for independent visual moments.")
 broll=st.checkbox("Find Wikimedia Commons B-roll automatically",False,help="Optional stock footage is inserted with silence and may interrupt dialogue. Review all licenses before publishing.")
 count=st.slider("Maximum B-roll shots",0,4,2)
@@ -75,7 +81,7 @@ if st.button("Generate video package",type="primary",disabled=src is None):
         target=min(minutes*60,length)
         if target<minutes*60: st.warning("Source shorter than target; output will be shorter")
         rng=random.Random(int(seed))
-        step=float(shot_length)
+        step=float(min(shot_length,12 if pacing=="Fast-paced" else 7 if pacing=="Very fast" else shot_length))
         n=max(1,int((target+step-0.001)//step))
         # Sample without duplicating time ranges. Chronological mode retains story order.
         if length <= target+0.5:
@@ -91,7 +97,7 @@ if st.button("Generate video package",type="primary",disabled=src is None):
             seconds=min(step,target-i*step)
             if seconds<=0: break
             out=work/f"part_{i:03}.mp4"
-            cut(inp,round(start,2),round(seconds,2),out,mute=audio_mode.startswith("Mute"))
+            cut(inp,round(start,2),round(seconds,2),out,mute=audio_mode.startswith("Mute"),punch=punch_zoom and i%2==1)
             parts.append(out)
             bar.progress(min(0.55,(i+1)/n*0.55))
         credits=[]
@@ -136,7 +142,7 @@ if st.button("Generate video package",type="primary",disabled=src is None):
             "editing_style":edit_mode,"audio":audio_mode,"target_minutes":minutes,
             "source_seconds":round(length,2),"shot_seconds":shot_length,
             "broll_topic":topic if broll else None,"broll_shots":len(credits),
-            "shorts":short_count,"seed":int(seed)
+            "shorts":short_count,"seed":int(seed),"pacing":pacing,"punch_zoom":punch_zoom
         },indent=2))
         package=work/"clipforge_outputs.zip"
         with zipfile.ZipFile(package,"w",compression=zipfile.ZIP_STORED) as z:
