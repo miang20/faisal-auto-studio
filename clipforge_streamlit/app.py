@@ -5,7 +5,7 @@ import streamlit as st
 
 st.set_page_config(page_title="ClipForge Auto Studio",page_icon="🎬",layout="wide")
 st.title("🎬 ClipForge Auto Studio")
-st.caption("Card-free video compilation • Wikimedia Commons B-roll • MP4 + Shorts + thumbnail")
+st.caption("Story-first or remix editing • synchronized audio • optional licensed B-roll • MP4 + Shorts + thumbnail")
 st.warning("Upload only video you have rights to reuse. B-roll licenses require review. Free cloud hosting may time out on large renders.")
 
 def run(cmd,timeout=600):
@@ -54,7 +54,12 @@ def download(url,path):
 src=st.file_uploader("Upload your source video",type=["mp4","mov","webm"])
 topic=st.text_input("Topic for live B-roll search","internet technology")
 minutes=st.slider("Target minutes",1,10,8)
-broll=st.checkbox("Find Wikimedia Commons B-roll automatically",True)
+edit_mode=st.selectbox("Editing style",["Story-first (chronological)","Remix (shuffled scenes)"],help="Story-first keeps shots in chronological order; Remix changes their order and may interrupt dialogue continuity.")
+audio_mode=st.selectbox("Audio treatment",["Original synchronized audio","Mute source audio"],help="Audio is cut together with each video segment. Mute mode outputs silent audio.")
+shot_length=st.slider("Average source shot length (seconds)",6,40,20,2)
+short_count=st.slider("Number of vertical Shorts",0,3,3)
+st.caption("Story-first is the safer choice for dialogue, interviews and narrative videos. Remix is intended for independent visual moments.")
+broll=st.checkbox("Find Wikimedia Commons B-roll automatically",False,help="Optional stock footage is inserted with silence and may interrupt dialogue. Review all licenses before publishing.")
 count=st.slider("Maximum B-roll shots",0,4,2)
 seed=st.number_input("Shuffle seed",min_value=1,max_value=99999,value=42)
 if st.button("Generate video package",type="primary",disabled=src is None):
@@ -70,17 +75,23 @@ if st.button("Generate video package",type="primary",disabled=src is None):
         target=min(minutes*60,length)
         if target<minutes*60: st.warning("Source shorter than target; output will be shorter")
         rng=random.Random(int(seed))
-        step=min(20,max(6,target/12))
-        n=max(1,int(target/step))
-        starts=[max(0,(length-step)*i/max(1,n-1)) for i in range(n)]
-        rng.shuffle(starts)
+        step=float(shot_length)
+        n=max(1,int((target+step-0.001)//step))
+        # Sample without duplicating time ranges. Chronological mode retains story order.
+        if length <= target+0.5:
+            starts=[i*step for i in range(n)]
+        else:
+            spacing=(length-target)/max(1,n)
+            starts=[min(length-step,i*(step+spacing)) for i in range(n)]
+        if edit_mode.startswith("Remix"):
+            rng.shuffle(starts)
         parts=[]
         bar=st.progress(0)
         for i,start in enumerate(starts):
             seconds=min(step,target-i*step)
             if seconds<=0: break
             out=work/f"part_{i:03}.mp4"
-            cut(inp,round(start,2),round(seconds,2),out)
+            cut(inp,round(start,2),round(seconds,2),out,mute=audio_mode.startswith("Mute"))
             parts.append(out)
             bar.progress(min(0.55,(i+1)/n*0.55))
         credits=[]
@@ -112,7 +123,7 @@ if st.button("Generate video package",type="primary",disabled=src is None):
              "-c:a","aac","-b:a","128k",str(final)],600)
         bar.progress(.8)
         shorts=[]
-        for i in range(3):
+        for i in range(short_count):
             start=max(0,(i+.5)*duration(final)/3-15)
             clip=work/f"short_{i+1}.mp4"
             # preserve source audio from final during portrait crop
@@ -121,14 +132,21 @@ if st.button("Generate video package",type="primary",disabled=src is None):
         thumb=work/"thumbnail.jpg"
         run(["ffmpeg","-y","-v","error","-ss",str(duration(final)/3),"-i",str(final),"-frames:v","1","-vf","scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720",str(thumb)],90)
         (work/"BROLL_CREDITS.json").write_text(json.dumps(credits,indent=2))
+        (work/"EDIT_SETTINGS.json").write_text(json.dumps({
+            "editing_style":edit_mode,"audio":audio_mode,"target_minutes":minutes,
+            "source_seconds":round(length,2),"shot_seconds":shot_length,
+            "broll_topic":topic if broll else None,"broll_shots":len(credits),
+            "shorts":short_count,"seed":int(seed)
+        },indent=2))
         package=work/"clipforge_outputs.zip"
         with zipfile.ZipFile(package,"w",compression=zipfile.ZIP_STORED) as z:
-            for p in [final,*shorts,thumb,work/"BROLL_CREDITS.json"]:z.write(p,p.name)
+            for p in [final,*shorts,thumb,work/"BROLL_CREDITS.json",work/"EDIT_SETTINGS.json"]:z.write(p,p.name)
         bar.progress(1.)
         st.success("Render completed")
         st.video(str(final))
+        st.caption("Preview the full video and verify cuts, dialogue, B-roll relevance and licensing before publishing.")
         st.download_button("Download full package",package.read_bytes(),"clipforge_outputs.zip","application/zip")
         st.download_button("Download long MP4",final.read_bytes(),"compilation.mp4","video/mp4")
-        st.json({"seconds":round(duration(final),1),"B-roll shots":len(credits),"Shorts":3})
+        st.json({"seconds":round(duration(final),1),"B-roll shots":len(credits),"Shorts":short_count,"Editing style":edit_mode,"Audio":audio_mode})
     except Exception as e:
         st.error(f"Render failed: {e}")
