@@ -14,10 +14,21 @@ def run(cmd,timeout=600):
     return p.stdout
 def duration(p):
     return float(run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(p)]).strip())
-def cut(src,start,length,out,portrait=False):
+def has_audio(src):
+    return bool(run(["ffprobe","-v","error","-select_streams","a:0","-show_entries","stream=index","-of","csv=p=0",str(src)]).strip())
+def cut(src,start,length,out,portrait=False,mute=False):
     w,h=(540,960) if portrait else (960,540)
     vf=f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps=24,format=yuv420p"
-    run(["ffmpeg","-y","-v","error","-ss",str(start),"-i",str(src),"-t",str(length),"-vf",vf,"-c:v","libx264","-preset","ultrafast","-crf","28","-an",str(out)],180)
+    cmd=["ffmpeg","-y","-v","error","-ss",str(start),"-i",str(src)]
+    use_source_audio=has_audio(src) and not mute
+    if not use_source_audio:
+        cmd+=["-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=48000"]
+    cmd+=["-t",str(length),"-map","0:v:0","-map","0:a:0" if use_source_audio else "1:a:0",
+          "-vf",vf,"-af","aresample=async=1:first_pts=0",
+          "-c:v","libx264","-preset","ultrafast","-crf","28",
+          "-c:a","aac","-ar","48000","-ac","2","-b:a","128k",
+          "-shortest",str(out)]
+    run(cmd,180)
 def lookup(topic):
     response=requests.get("https://commons.wikimedia.org/w/api.php",params={"action":"query","generator":"search","gsrsearch":"filetype:video "+topic,"gsrnamespace":6,"gsrlimit":12,"prop":"imageinfo","iiprop":"url|extmetadata","format":"json"},headers={"User-Agent":"ClipForgeAutoStudio/1.0 (open-source demo)"},timeout=20)
     response.raise_for_status()
@@ -84,18 +95,21 @@ if st.button("Generate video package",type="primary",disabled=src is None):
                         sec=min(4,duration(raw))
                         if sec<1:continue
                         out=work/f"stockcut_{len(credits)}.mp4"
-                        cut(raw,0,sec,out)
+                        cut(raw,0,sec,out,mute=True)
                         parts.insert(min(len(parts),max(1,len(parts)//(count+1)*(len(credits)+1))),out)
                         credits.append(item)
                     except Exception:continue
             except Exception as e:st.warning(f"B-roll search unavailable: {e}")
         listing=work/"concat.txt"
         listing.write_text("".join("file '"+str(p.resolve()).replace("'","'\\''")+"'\n" for p in parts))
-        silent=work/"silent.mp4"
-        run(["ffmpeg","-y","-v","error","-f","concat","-safe","0","-i",str(listing),"-c:v","libx264","-preset","ultrafast","-crf","28","-an",str(silent)],600)
+        joined=work/"joined.mp4"
+        run(["ffmpeg","-y","-v","error","-f","concat","-safe","0","-i",str(listing),
+             "-c","copy",str(joined)],600)
         final=work/"compilation.mp4"
-        # Audio is taken from original video; it will not be semantically aligned to shuffled shots.
-        run(["ffmpeg","-y","-v","error","-i",str(silent),"-stream_loop","-1","-i",str(inp),"-map","0:v:0","-map","1:a:0?","-af","loudnorm=I=-16:TP=-1.5:LRA=11","-c:v","copy","-c:a","aac","-b:a","128k","-shortest",str(final)],600)
+        # Audio and video are cut together for every shot before rearranging.
+        run(["ffmpeg","-y","-v","error","-i",str(joined),"-map","0:v:0","-map","0:a:0",
+             "-af","loudnorm=I=-16:TP=-1.5:LRA=11","-c:v","copy",
+             "-c:a","aac","-b:a","128k",str(final)],600)
         bar.progress(.8)
         shorts=[]
         for i in range(3):
