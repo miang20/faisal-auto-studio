@@ -32,7 +32,7 @@ def cut(src,start,length,out,portrait=False,mute=False,punch=False):
           "-shortest",str(out)]
     run(cmd,180)
 def lookup(topic):
-    response=requests.get("https://commons.wikimedia.org/w/api.php",params={"action":"query","generator":"search","gsrsearch":"filetype:video "+topic,"gsrnamespace":6,"gsrlimit":12,"prop":"imageinfo","iiprop":"url|extmetadata","format":"json"},headers={"User-Agent":"ClipForgeAutoStudio/1.0 (open-source demo)"},timeout=20)
+    response=requests.get("https://commons.wikimedia.org/w/api.php",params={"action":"query","generator":"search","gsrsearch":"filetype:video "+topic,"gsrnamespace":6,"gsrlimit":50,"prop":"imageinfo","iiprop":"url|extmetadata","format":"json"},headers={"User-Agent":"ClipForgeAutoStudio/1.0 (open-source demo)"},timeout=20)
     response.raise_for_status()
     result=[]
     for item in response.json().get("query",{}).get("pages",{}).values():
@@ -65,8 +65,8 @@ pacing=st.selectbox("Pacing",["Balanced","Fast-paced","Very fast"],help="Faster 
 punch_zoom=st.checkbox("Subtle punch-in on alternating shots",True,help="Adds a small static zoom to alternating clips, not AI camera motion.")
 st.caption("Fast pacing and zoom add energy, but this version does not detect punchlines, viral moments or sentence boundaries.")
 st.caption("Story-first is the safer choice for dialogue, interviews and narrative videos. Remix is intended for independent visual moments.")
-broll=st.checkbox("Find Wikimedia Commons B-roll automatically",False,help="Optional stock footage is inserted with silence and may interrupt dialogue. Review all licenses before publishing.")
-count=st.slider("Maximum B-roll shots",0,4,2)
+broll=st.checkbox("Find Wikimedia Commons B-roll automatically",True,help="Automatically uses available eligible Wikimedia footage. B-roll is silent and may interrupt dialogue; review licenses before publishing.")
+st.caption("B-roll quantity is automatic: depends on search results, target duration and free server resources.")
 seed=st.number_input("Shuffle seed",min_value=1,max_value=99999,value=42)
 if st.button("Generate video package",type="primary",disabled=src is None):
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
@@ -101,9 +101,11 @@ if st.button("Generate video package",type="primary",disabled=src is None):
             parts.append(out)
             bar.progress(min(0.55,(i+1)/n*0.55))
         credits=[]
-        if broll and count:
+        if broll:
             try:
                 options=lookup(topic);rng.shuffle(options)
+                # Avoid overwhelming the free host and drowning out the source.
+                count=min(len(options),max(1,int(target//45)),12)
                 for item in options:
                     if len(credits)>=count:break
                     raw=work/f"stock_{len(credits)}{Path(item['url'].split('?')[0]).suffix}"
