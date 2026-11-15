@@ -10,7 +10,7 @@ import android.media.MediaMetadataRetriever;
 import android.widget.*;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
-import androidx.media3.common.Effects;
+import androidx.media3.transformer.Effects;
 import androidx.media3.effect.Presentation;
 import androidx.media3.transformer.EditedMediaItem;
 import androidx.media3.transformer.ExportException;
